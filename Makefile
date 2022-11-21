@@ -333,7 +333,7 @@ error-code: etc/error_code.toml
 
 # A special target for building TiKV docker image.
 docker:
-	docker build --no-cache \
+	docker build \
 		-t ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} \
 		--build-arg GIT_HASH=${TIKV_BUILD_GIT_HASH} \
 		--build-arg GIT_TAG=${TIKV_BUILD_GIT_TAG} \
