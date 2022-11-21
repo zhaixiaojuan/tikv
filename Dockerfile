@@ -18,12 +18,13 @@
 
 
 # The prepare image avoid ruining the cache of the builder
-FROM centos:7.6.1810 as prepare
+FROM cr.loongnix.cn/loongson/loongnix-server:8.4.0 as prepare
 WORKDIR /tikv
 
-# This step will always ruin the cache
+# This step will always run the cache
 # There isn't a way with docker to wildcard COPY and preserve the directory structure
 COPY . .
+RUN rm -rf cargo-cache
 RUN mkdir /output
 RUN for component in $(find . -type f -name 'Cargo.toml' -exec dirname {} \; | sort -u); do \
      mkdir -p "/output/${component}/src" \
@@ -31,35 +32,30 @@ RUN for component in $(find . -type f -name 'Cargo.toml' -exec dirname {} \; | s
   && cp "${component}/Cargo.toml" "/output/${component}/Cargo.toml" \
   ; done
 
+FROM cr.loongnix.cn/loongson/loongnix-server:8.4.0 as builder
 
-FROM centos:7.6.1810 as builder
-
-RUN yum install -y epel-release && \
+RUN yum install -y loongnix-release-epel && \
     yum clean all && \
     yum makecache
 
-RUN yum install -y centos-release-scl && \
+RUN yum install -y scl-utils && \
     yum install -y \
-      devtoolset-8 \
-      perl cmake3 && \
+      rpmdevtools git \
+      gcc gcc-c++ \
+      protobuf-compiler \
+      clang-libs clang-devel \
+      perl cmake3 make && \
     yum clean all
 
-# CentOS gives cmake 3 a weird binary name, so we link it to something more normal
-# This is required by many build scripts, including ours.
-RUN ln -s /usr/bin/cmake3 /usr/bin/cmake
 ENV LIBRARY_PATH /usr/local/lib:$LIBRARY_PATH
 ENV LD_LIBRARY_PATH /usr/local/lib:$LD_LIBRARY_PATH
 
-# Install Rustup
-RUN curl https://sh.rustup.rs -sSf | sh -s -- --no-modify-path --default-toolchain none -y
-ENV PATH /root/.cargo/bin/:$PATH
+## Install the Rust toolchain
+COPY nightly-2021-10-18-loongarch64-unknown-linux-gnu /usr/nightly-2021-10-18-loongarch64-unknown-linux-gnu
+ENV PATH /usr/nightly-2021-10-18-loongarch64-unknown-linux-gnu/bin/:/usr/bin/:$PATH
 
-# Install the Rust toolchain
 WORKDIR /tikv
 COPY rust-toolchain ./
-RUN rustup self update \
-  && rustup set profile minimal \
-  && rustup default $(cat "rust-toolchain")
 
 # For cargo
 COPY scripts ./scripts
@@ -77,7 +73,8 @@ RUN mkdir -p ./cmd/tikv-ctl/src ./cmd/tikv-server/src && \
     done
 
 COPY Makefile ./
-RUN source /opt/rh/devtoolset-8/enable && make build_dist_release
+COPY cargo-cache /root/.cargo
+RUN make build_dist_release
 
 # Remove fingerprints for when we build the real binaries.
 RUN rm -rf ./target/release/.fingerprint/tikv-* && \
@@ -98,10 +95,10 @@ ARG GIT_BRANCH=${GIT_FALLBACK}
 ENV TIKV_BUILD_GIT_HASH=${GIT_HASH}
 ENV TIKV_BUILD_GIT_TAG=${GIT_TAG}
 ENV TIKV_BUILD_GIT_BRANCH=${GIT_BRANCH}
-RUN source /opt/rh/devtoolset-8/enable && make build_dist_release
+RUN make build_dist_release
+#RUN cargo build --verbose --release --package=tikv-server --package=tikv-ctl '--features= jemalloc mem-profiling portable test-engines-rocksdb cloud-aws cloud-gcp cloud-azure'
 
-# Export to a clean image
-FROM pingcap/alpine-glibc
+FROM cr.loongnix.cn/loongson/loongnix-server:8.4.0
 COPY --from=builder /tikv/target/release/tikv-server /tikv-server
 COPY --from=builder /tikv/target/release/tikv-ctl /tikv-ctl
 

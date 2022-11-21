@@ -69,6 +69,11 @@ ifeq ($(shell uname -p),arm)
 ROCKSDB_SYS_SSE=0
 endif
 
+# Disable SSE on LoongArch64
+ifeq ($(shell uname -p),loongarch64)
+ROCKSDB_SYS_SSE=0
+endif
+
 # Build portable binary by default unless disable explicitly
 ifneq ($(ROCKSDB_SYS_PORTABLE),0)
 ENABLE_FEATURES += portable
@@ -115,8 +120,8 @@ export TIKV_BUILD_GIT_HASH ?= $(shell git rev-parse HEAD 2> /dev/null || echo ${
 export TIKV_BUILD_GIT_TAG ?= $(shell git describe --tag || echo ${BUILD_INFO_GIT_FALLBACK})
 export TIKV_BUILD_GIT_BRANCH ?= $(shell git rev-parse --abbrev-ref HEAD 2> /dev/null || echo ${BUILD_INFO_GIT_FALLBACK})
 
-export DOCKER_IMAGE_NAME ?= "pingcap/tikv"
-export DOCKER_IMAGE_TAG ?= "latest"
+export DOCKER_IMAGE_NAME ?= "cr.loongnix.cn/pingcap/tikv"
+export DOCKER_IMAGE_TAG ?= "v5.4.3"
 
 # Turn on cargo pipelining to add more build parallelism. This has shown decent
 # speedups in TiKV.
@@ -328,7 +333,7 @@ error-code: etc/error_code.toml
 
 # A special target for building TiKV docker image.
 docker:
-	docker build \
+	docker build --no-cache \
 		-t ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} \
 		--build-arg GIT_HASH=${TIKV_BUILD_GIT_HASH} \
 		--build-arg GIT_TAG=${TIKV_BUILD_GIT_TAG} \

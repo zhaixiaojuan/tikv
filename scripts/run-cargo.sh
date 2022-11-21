@@ -29,7 +29,8 @@ else
 fi
 
 # All features are enabled explicitly
-args="$args --no-default-features"
+#args="$args --no-default-features"
+args="$args "
 
 features="default"
 
@@ -47,6 +48,12 @@ if [[ -n "$X_CARGO_CONFIG_FILE" ]]; then
     mkdir .cargo 2> /dev/null || true
     set -x
     cp "$X_CARGO_CONFIG_FILE" .cargo/config
+    echo '
+[source.crates-io]
+replace-with = "loongnix"
+
+[source.loongnix]
+registry = "http://crates.loongnix.cn/crates.io-index"' >> .cargo/config
     set +x
 fi
 
